@@ -1,0 +1,25 @@
+[package]
+name = "procon-2021"
+version = "0.1.0"
+edition = "2021"
+default-run = "main"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+default = [#"newer", 
+"local", "bench", "nightly"]
+newer = []
+local = []
+bench = []
+nightly = []
+
+[dependencies]
+
+[[bin]]
+name = "main"
+path = "src/main.rs"
+
+[[bin]]
+name = "gen"
+path = "src/main_gen.rs"

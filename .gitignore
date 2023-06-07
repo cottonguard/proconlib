@@ -1,0 +1,6 @@
+/target
+main*.rs
+/*.txt
+/*.sh
+.vscode
+.DS_Store
