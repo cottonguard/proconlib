@@ -132,6 +132,10 @@ impl<M: Modulo> ModInt<M> {
         M::modulo()
     }
     #[inline]
+    pub fn set(&mut self, value: u32) {
+        *self = Self::new(value);
+    }
+    #[inline]
     pub fn inv(self) -> Self {
         self.pow(M::modulo() - 2)
     }
