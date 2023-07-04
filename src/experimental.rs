@@ -363,3 +363,9 @@ pub fn find_ws_simd(s: &[u8]) -> Option<usize> {
     }
     find_ws_naive(&s[offset..]).map(|pos| offset + pos)
 }
+
+/*
+
+ */
+
+pub struct DelaunayTriangulation {}

@@ -54,6 +54,46 @@ impl<T: Monoid> SegTree<T> {
         self.update(i, |val| *val = val.op(&x));
     }
 
+    /*
+    pub fn max_right<F: FnMut(&T) -> bool>(&self, l: usize, mut f: F) -> (usize, T)
+    where
+        T: std::fmt::Debug,
+    {
+        let mut x = T::id();
+        let mut i = self.len() + l;
+        loop {
+            let sum = x.op(&self.0[i - 1]);
+            dbg!(i, &sum, &self.0[i - 1]);
+            if !f(&sum) {
+                break;
+            }
+            if i == 1 {
+                x = sum;
+                break;
+            }
+            if i % 2 == 1 {
+                x = sum;
+                i += 1;
+            } else {
+                i /= 2;
+            }
+        }
+        loop {
+            let sum = x.op(&self.0[i - 1]);
+            dbg!(i, &sum);
+            if f(&sum) {
+                x = sum;
+                i += 1;
+            }
+            if i >= self.len() {
+                break;
+            }
+            i *= 2;
+        }
+        (i - self.len(), x)
+    }
+     */
+
     #[inline]
     fn build(mut a: Vec<T>) -> Self {
         let n = (a.len() + 1) / 2;

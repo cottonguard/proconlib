@@ -61,6 +61,7 @@ pub mod bitset;
 
 pub mod dft2;
 pub mod modint2;
+pub mod modint_poly;
 
 #[cfg(feature = "nightly")]
 pub mod mod_int_vector;

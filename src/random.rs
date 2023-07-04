@@ -193,7 +193,7 @@ impl<I: Weight> WeightedIndex<I> {
         &mut a[self.index(rng)]
     }
 }
-impl<T: Weight> FromIterator<T> for WeightedIndex<T> {
+impl<T: Weight> std::iter::FromIterator<T> for WeightedIndex<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         iter.into_iter().collect::<Vec<T>>().into()
     }

@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{convert::TryInto, fmt::Debug};
 
 pub fn pow<T: Clone, F: FnMut(&T, &T) -> T, K: TryInto<u64>>(x: T, k: K, id: T, mut mul: F) -> T
 where
