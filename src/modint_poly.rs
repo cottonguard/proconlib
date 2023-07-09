@@ -3,7 +3,8 @@ use std::{
     hash::Hash,
     mem,
     ops::{
-        Add, AddAssign, Deref, DerefMut, DivAssign, Mul, MulAssign, Neg, ShlAssign, Sub, SubAssign,
+        Add, AddAssign, Deref, DerefMut, Div, DivAssign, Mul, MulAssign, Neg, Rem, RemAssign,
+        ShlAssign, Sub, SubAssign,
     },
 };
 
@@ -15,15 +16,50 @@ impl<M> Poly<M> {
     pub fn zero() -> Self {
         Self(vec![])
     }
-}
 
-impl<M: Modulo> Poly<M> {
-    pub fn normalize(&mut self) {
-        if let Some(i) = self.0.iter().rposition(|a| a.get() != 0) {
-            self.0.truncate(i + 1);
+    pub fn repeat(a: ModInt<M>, deg: usize) -> Self {
+        if a.get() == 0 {
+            Self::zero()
+        } else {
+            Self(vec![a; deg + 1])
         }
     }
 
+    pub fn deg(&self) -> usize {
+        self.0.iter().rposition(|a| a.get() != 0).unwrap_or(!0)
+    }
+
+    pub fn normalize(&mut self) {
+        let len = self
+            .0
+            .iter()
+            .rposition(|a| a.get() != 0)
+            .map_or(0, |i| i + 1);
+        self.0.truncate(len);
+    }
+
+    pub fn as_normalized_slice(&self) -> &[ModInt<M>] {
+        let len = self
+            .0
+            .iter()
+            .rposition(|a| a.get() != 0)
+            .map_or(0, |i| i + 1);
+        &self.0[..len]
+    }
+
+    pub fn coef(&self, i: usize) -> ModInt<M> {
+        self.0.get(i).copied().unwrap_or(ModInt::ZERO)
+    }
+
+    pub fn coef_mut(&mut self, i: usize) -> &mut ModInt<M> {
+        if i >= self.0.len() {
+            self.0.resize(i + 1, ModInt::ZERO);
+        }
+        self.0.get_mut(i).unwrap()
+    }
+}
+
+impl<M: Modulo> Poly<M> {
     pub fn evaluate(&self, x: ModInt<M>) -> ModInt<M> {
         let mut xpow = ModInt::new(1);
         let mut sum = ModInt::new(0);
@@ -34,10 +70,7 @@ impl<M: Modulo> Poly<M> {
         sum
     }
 
-    fn mul_naive(&mut self, other: &mut Self) {
-        if self.0.len() < other.0.len() {
-            mem::swap(self, other);
-        }
+    fn mul_naive(&mut self, other: &Self) {
         let orig_len = self.0.len();
         self.0
             .resize(self.0.len() + other.0.len() - 1, ModInt::new(0));
@@ -48,6 +81,54 @@ impl<M: Modulo> Poly<M> {
                 self.0[i + j] += x * y;
             }
         }
+    }
+
+    pub fn inv(&self, n: usize) -> Self {
+        assert!(!self.is_empty());
+        assert!(self[0] != ModInt::new(0));
+        let mut f = Self(vec![ModInt::new(0); n.next_power_of_two()]);
+        let mut res = Self(vec![ModInt::new(0); n]);
+        res[0] = self[0].inv();
+        let mut tmp = Self(vec![ModInt::new(0); n.next_power_of_two()]);
+        let mut m = 1;
+        while m < n {
+            tmp[..m].copy_from_slice(&res[..m]);
+            dft(&mut tmp[..2 * m]);
+            f[..(2 * m).min(self.len())].copy_from_slice(&self[..(2 * m).min(self.len())]);
+            if self.len() < 2 * m {
+                for f in f[self.len()..2 * m].iter_mut() {
+                    *f = ModInt::new(0);
+                }
+            }
+            dft(&mut f[..2 * m]);
+            for (f, t) in f[..2 * m].iter_mut().zip(tmp[..2 * m].iter()) {
+                *f *= t;
+            }
+            idft(&mut f[..2 * m]);
+            for f in f[..m].iter_mut() {
+                *f = ModInt::new(0);
+            }
+            dft(&mut f[..2 * m]);
+            for (f, t) in f[..2 * m].iter_mut().zip(tmp[..2 * m].iter()) {
+                *f *= t;
+            }
+            idft(&mut f[..2 * m]);
+            for (r, f) in res[m..(2 * m).min(n)]
+                .iter_mut()
+                .zip(f[m..(2 * m).min(n)].iter())
+            {
+                *r = -f;
+            }
+            m *= 2;
+        }
+        res.0.truncate(n);
+        res
+    }
+
+    pub fn div_rem(self, other: Self) -> (Self, Self) {
+        let q = &self / &other;
+        let r = self - other * &q;
+        (q, r)
     }
 }
 
@@ -66,7 +147,7 @@ impl<M> DerefMut for Poly<M> {
 
 impl<M> PartialEq for Poly<M> {
     fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
+        self.as_normalized_slice() == other.as_normalized_slice()
     }
 }
 
@@ -84,20 +165,32 @@ impl<M> Clone for Poly<M> {
     }
 }
 
-impl<M> Display for Poly<M> {
+impl<M: Modulo> Display for Poly<M> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut is_zero = true;
         for (i, a) in self.iter().enumerate() {
             if a.get() == 0 {
                 continue;
             }
+            let (aa, minus) = if a.get() <= M::modulo() / 20 * 19 {
+                (a.get(), false)
+            } else {
+                (M::modulo() - a.get(), true)
+            };
             is_zero = false;
             if i == 0 {
-                write!(f, "{a}")?;
+                if minus {
+                    write!(f, "-")?;
+                }
+                write!(f, "{aa}")?;
             } else {
-                write!(f, " + ")?;
-                if a.get() != 1 {
-                    write!(f, "{a}")?;
+                if minus {
+                    write!(f, " - ")?;
+                } else {
+                    write!(f, " + ")?;
+                }
+                if aa != 1 {
+                    write!(f, "{aa}")?;
                 }
                 write!(f, "x")?;
                 if i > 1 {
@@ -169,13 +262,86 @@ impl<M: Modulo> SubAssign<&Self> for Poly<M> {
     }
 }
 
-macro_rules! ops {
-    ($Op: ident, $op: ident, $OpAssign: ident, $op_assign: ident) => {
+impl<M: Modulo> MulAssign for Poly<M> {
+    fn mul_assign(&mut self, mut rhs: Self) {
+        if self.0.is_empty() || rhs.0.is_empty() {
+            self.0.clear();
+            return;
+        }
+        if self.0.len().min(rhs.0.len()) <= 16 {
+            if self.0.len() < rhs.0.len() {
+                mem::swap(self, &mut rhs);
+            }
+            self.mul_naive(&mut rhs);
+            return;
+        }
+        let len = (self.0.len() + rhs.0.len() - 1).next_power_of_two();
+        self.0.resize(len, ModInt::new(0));
+        dft(&mut self.0);
+        rhs.0.resize(len, ModInt::new(0));
+        dft(&mut rhs.0);
+        for (x, y) in self.0.iter_mut().zip(rhs.0.iter()) {
+            *x *= y;
+        }
+        idft(&mut self.0);
+        self.normalize();
+    }
+}
+
+impl<M: Modulo> DivAssign for Poly<M> {
+    fn div_assign(&mut self, mut rhs: Self) {
+        self.normalize();
+        rhs.normalize();
+        if self.len() < rhs.len() {
+            self.0.clear();
+            return;
+        }
+        self.reverse();
+        rhs.reverse();
+        let len = self.len() - rhs.len() + 1;
+        let inv = rhs.inv(len);
+        *self *= inv;
+        self.0.resize(len, ModInt::ZERO);
+        self.reverse();
+        self.normalize();
+    }
+}
+
+impl<M: Modulo> RemAssign for Poly<M> {
+    fn rem_assign(&mut self, rhs: Self) {
+        let q = &*self / &rhs;
+        *self -= rhs * q;
+    }
+}
+
+macro_rules! ops_assign_val_from_ref {
+    ($OpAssign: ident, $op_assign: ident) => {
         impl<M: Modulo> $OpAssign for Poly<M> {
             fn $op_assign(&mut self, rhs: Self) {
                 self.$op_assign(&rhs);
             }
         }
+    };
+}
+
+macro_rules! ops_assign_ref_from_val {
+    ($OpAssign: ident, $op_assign: ident) => {
+        impl<M: Modulo> $OpAssign<&Self> for Poly<M> {
+            fn $op_assign(&mut self, rhs: &Self) {
+                self.$op_assign(rhs.clone());
+            }
+        }
+    };
+}
+
+ops_assign_val_from_ref!(AddAssign, add_assign);
+ops_assign_val_from_ref!(SubAssign, sub_assign);
+ops_assign_ref_from_val!(MulAssign, mul_assign);
+ops_assign_ref_from_val!(DivAssign, div_assign);
+ops_assign_ref_from_val!(RemAssign, rem_assign);
+
+macro_rules! ops {
+    ($Op: ident, $op: ident, $OpAssign: ident, $op_assign: ident) => {
         impl<M: Modulo> $Op<&Self> for Poly<M> {
             type Output = Self;
             fn $op(mut self, rhs: &Self) -> Self::Output {
@@ -206,65 +372,9 @@ macro_rules! ops {
 
 ops!(Add, add, AddAssign, add_assign);
 ops!(Sub, sub, SubAssign, sub_assign);
-
-impl<M: Modulo> Mul for Poly<M> {
-    type Output = Self;
-    fn mul(mut self, mut rhs: Self) -> Self::Output {
-        if self.0.is_empty() || rhs.0.is_empty() {
-            return Self::zero();
-        }
-        if self.0.len().min(rhs.0.len()) <= 16 {
-            self.mul_naive(&mut rhs);
-            return self;
-        }
-        let len = (self.0.len() + rhs.0.len() - 1).next_power_of_two();
-        self.0.resize(len, ModInt::new(0));
-        dft(&mut self.0);
-        rhs.0.resize(len, ModInt::new(0));
-        dft(&mut rhs.0);
-        for (x, y) in self.0.iter_mut().zip(rhs.0.iter()) {
-            *x *= y;
-        }
-        idft(&mut self.0);
-        self.normalize();
-        self
-    }
-}
-
-macro_rules! mul {
-    ($Op: ident, $op: ident, $OpAssign: ident, $op_assign: ident) => {
-        impl<M: Modulo> $OpAssign for Poly<M> {
-            fn $op_assign(&mut self, rhs: Self) {
-                *self = (mem::take(self)).$op(rhs);
-            }
-        }
-        impl<M: Modulo> $OpAssign<&Self> for Poly<M> {
-            fn $op_assign(&mut self, rhs: &Self) {
-                *self = (mem::take(self)).$op(rhs);
-            }
-        }
-        impl<M: Modulo> $Op for &Poly<M> {
-            type Output = Poly<M>;
-            fn $op(self, rhs: Self) -> Self::Output {
-                self.clone().$op(rhs.clone())
-            }
-        }
-        impl<M: Modulo> $Op<Poly<M>> for &Poly<M> {
-            type Output = Poly<M>;
-            fn $op(self, rhs: Poly<M>) -> Self::Output {
-                self.clone().$op(rhs)
-            }
-        }
-        impl<M: Modulo> $Op<&Self> for Poly<M> {
-            type Output = Self;
-            fn $op(self, rhs: &Self) -> Self::Output {
-                self.$op(rhs.clone())
-            }
-        }
-    };
-}
-
-mul!(Mul, mul, MulAssign, mul_assign);
+ops!(Mul, mul, MulAssign, mul_assign);
+ops!(Div, div, DivAssign, div_assign);
+ops!(Rem, rem, RemAssign, rem_assign);
 
 pub fn dft<M: Modulo>(a: &mut [ModInt<M>]) {
     dft_impl(a, false);
@@ -391,7 +501,7 @@ fn primitive_root<M: Modulo>() -> u32 {
     }
 }
 
-impl<M: Modulo> From<Vec<ModInt<M>>> for Poly<M> {
+impl<M> From<Vec<ModInt<M>>> for Poly<M> {
     fn from(value: Vec<ModInt<M>>) -> Self {
         let mut res = Self(value);
         res.normalize();
@@ -414,3 +524,9 @@ macro_rules! from_int32_vec {
 
 from_int32_vec!(u32);
 from_int32_vec!(i32);
+
+impl<M> FromIterator<ModInt<M>> for Poly<M> {
+    fn from_iter<T: IntoIterator<Item = ModInt<M>>>(iter: T) -> Self {
+        Self(iter.into_iter().collect())
+    }
+}

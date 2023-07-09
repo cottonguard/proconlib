@@ -1,4 +1,4 @@
-use crate::{modint2::*, modint_poly::*};
+use crate::{modint2::*, modint_poly::*, random::*};
 
 #[test]
 fn test() {
@@ -25,4 +25,28 @@ fn mul() {
 
     let long_pow2 = Poly::<M>::from((1..=100).chain((1..100).rev()).collect::<Vec<i32>>());
     assert_eq!(&long * &long, long_pow2);
+}
+
+#[test]
+fn div_rem_random() {
+    type M = ConstMod<998244353>;
+    let mut rng = Xoshiro::seed_from_u64(1);
+    for _ in 0..100 {
+        loop {
+            let n = rng.range(0, 100);
+            let m = rng.range(1, 100);
+            let f: Poly<M> = (0..n).map(|_| ModInt::from(rng.range(-10, 10))).collect();
+            let g: Poly<M> = (0..m).map(|_| ModInt::from(rng.range(-10, 10))).collect();
+            if g[0].get() == 0 {
+                continue;
+            }
+            let (q, r) = f.clone().div_rem(g.clone());
+            assert!(
+                r.deg() == !0 || r.deg() < g.deg(),
+                "f = {f}\n g = {g}\n q = {q}\n r = {r}",
+            );
+            assert_eq!(f, g * q + r);
+            break;
+        }
+    }
 }

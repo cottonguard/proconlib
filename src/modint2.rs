@@ -105,8 +105,9 @@ pub struct ModInt<M> {
 }
 
 impl<M> ModInt<M> {
+    pub const ZERO: Self = Self::unnormalized(0);
     #[inline]
-    pub fn unnormalized(value: u32) -> Self {
+    pub const fn unnormalized(value: u32) -> Self {
         Self {
             value,
             marker: PhantomData,
