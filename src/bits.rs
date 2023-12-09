@@ -62,17 +62,19 @@ macro_rules! imp {
                 }
             }
         }
-        /*
+
         impl DoubleEndedIterator for Bits<$ty> {
             fn next_back(&mut self) -> Option<$ty> {
                 if self.0 == 0 {
                     None
                 } else {
-                    let sb =
+                    let sb = 1 << (<$ty>::BITS - 1) >> self.0.leading_zeros();
+                    self.0 ^= sb;
+                    Some(sb)
                 }
             }
         }
-         */
+
         impl ExactSizeIterator for Bits<$ty> {
             fn len(&self) -> usize {
                 self.0.count_ones() as _
@@ -80,12 +82,12 @@ macro_rules! imp {
         }
 
         impl Iterator for BitPositions<$ty> {
-            type Item = $ty;
-            fn next(&mut self) -> Option<$ty> {
+            type Item = u32;
+            fn next(&mut self) -> Option<u32> {
                 if self.0 == 0 {
                     None
                 } else {
-                    let res = self.0.trailing_zeros() as $ty;
+                    let res = self.0.trailing_zeros();
                     self.0 ^= 1 << res;
                     Some(res)
                 }

@@ -7,13 +7,11 @@ default-run = "main"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-# default = ["local", "bench", "nightly"]
+default = ["local", "bench", "nightly"]
 newer = []
 local = []
 bench = []
 nightly = []
-
-[dependencies]
 
 [[bin]]
 name = "main"

@@ -17,6 +17,9 @@ pub fn var_mint(value: impl Into<ModInt<VarMod>>) -> ModInt<VarMod> {
     value.into()
 }
 
+pub type Mint<const N: u32> = ModInt<ConstMod<N>>;
+pub type VarMint = ModInt<VarMod>;
+
 pub trait Modulo {
     fn modulo() -> u32;
     #[inline]
@@ -99,6 +102,7 @@ thread_local! {
     static BR: Cell<BarrettReduction> = Cell::new(BarrettReduction { m:  0, s: 0, e: 0 });
 }
 
+#[repr(transparent)]
 pub struct ModInt<M> {
     value: u32,
     marker: PhantomData<M>,
@@ -114,7 +118,7 @@ impl<M> ModInt<M> {
         }
     }
     #[inline]
-    pub fn get(self) -> u32 {
+    pub const fn get(self) -> u32 {
         self.value
     }
 }
@@ -133,8 +137,8 @@ impl<M: Modulo> ModInt<M> {
         M::modulo()
     }
     #[inline]
-    pub fn set(&mut self, value: u32) {
-        *self = Self::new(value);
+    pub fn set<T: Into<ModInt<M>>>(&mut self, value: T) {
+        *self = value.into();
     }
     #[inline]
     pub fn inv(self) -> Self {
@@ -328,7 +332,7 @@ impl<M> Copy for ModInt<M> {}
 
 impl<M> Default for ModInt<M> {
     fn default() -> Self {
-        Self::unnormalized(0)
+        Self::ZERO
     }
 }
 
@@ -467,6 +471,10 @@ impl<M: Modulo> Fact<M> {
             ModInt::unnormalized(0)
         }
     }
+    #[inline]
+    pub fn catalan(&self, n: usize) -> ModInt<M> {
+        self.fact(2 * n) * self.fact_inv(n + 1) * self.fact_inv(n)
+    }
 }
 
 struct FactInner<M> {
@@ -510,12 +518,13 @@ impl<M: Modulo> FactInner<M> {
     fn grow_fact_inv(&mut self, n: usize) -> ModInt<M> {
         self.fact(n);
         self.fact_inv.reserve(n + 1 - self.fact_inv.len());
+        let orig_len = self.fact_inv.len();
         unsafe {
             let res = self.fact[n].inv();
             let mut val = res;
             let ptr = self.fact_inv.as_mut_ptr();
             *ptr.add(n) = val;
-            for i in (self.fact.len()..n).rev() {
+            for i in (orig_len..n).rev() {
                 val *= ModInt::new(i as u32 + 1);
                 *ptr.add(i) = val;
             }

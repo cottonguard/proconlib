@@ -57,6 +57,11 @@ impl<M> Poly<M> {
         }
         self.0.get_mut(i).unwrap()
     }
+
+    pub fn truncate(&mut self, max_deg: usize) {
+        self.0.truncate(max_deg + 1);
+        self.normalize();
+    }
 }
 
 impl<M: Modulo> Poly<M> {

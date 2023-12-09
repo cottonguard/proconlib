@@ -1,5 +1,5 @@
 type Idx = u32;
-const NIL: u32 = !0;
+const NIL: Idx = !0;
 
 pub struct AdjList<T> {
     heads: Vec<Idx>,
@@ -61,7 +61,7 @@ impl<T> AdjList<T> {
     fn assert_node_idx(&self, u: usize) {
         assert!(
             u < self.heads.len(),
-            "out of range (nodes={}, index={})",
+            "out of range (nodes = {}, index = {})",
             self.heads.len(),
             u
         );

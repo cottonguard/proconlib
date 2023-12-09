@@ -51,7 +51,7 @@ impl<T: Monoid, F: Monoid + Map<T>> LazySegTree<T, F> {
             }
             if r % 2 == 1 {
                 r -= 1;
-                rv = rv.op(&self.ss[r]);
+                rv = self.ss[r].op(&rv);
             }
             l /= 2;
             r /= 2;

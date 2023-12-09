@@ -56,12 +56,20 @@ pub mod cmat;
 pub mod input2;
 pub mod light_vec;
 pub mod output;
+pub mod output2;
 
 pub mod bitset;
 
 pub mod dft2;
 pub mod modint2;
 pub mod modint_poly;
+
+pub mod counter;
+pub mod float;
+pub mod sa;
+pub mod sandbox;
+pub mod slope_trick;
+pub mod stable_graph;
 
 #[cfg(feature = "nightly")]
 pub mod mod_int_vector;

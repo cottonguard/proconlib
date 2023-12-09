@@ -44,8 +44,9 @@ impl Dsu {
         -self.0[self.root(u)] as usize
     }
     pub fn reset(&mut self) {
-        todo!();
-        // self.0.fill(-1);
+        for a in &mut self.0 {
+            *a = -1;
+        }
     }
 }
 
@@ -57,7 +58,7 @@ pub struct UniteResult {
 }
 
 impl UniteResult {
-    pub fn is_united(&self) -> bool {
+    pub fn is_modified(&self) -> bool {
         self.united_root.is_some()
     }
 }
@@ -117,10 +118,12 @@ impl<T, F: FnMut(&mut T, T)> DsuMerge<T, F> {
 
 impl<T, F> Drop for DsuMerge<T, F> {
     fn drop(&mut self) {
-        for (u, data) in self.data.iter_mut().enumerate() {
-            if self.inner.is_root(u) {
-                unsafe {
-                    ManuallyDrop::drop(data);
+        if std::mem::needs_drop::<T>() {
+            for (u, data) in self.data.iter_mut().enumerate() {
+                if self.inner.is_root(u) {
+                    unsafe {
+                        ManuallyDrop::drop(data);
+                    }
                 }
             }
         }

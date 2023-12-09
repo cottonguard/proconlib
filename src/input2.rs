@@ -6,11 +6,19 @@ use std::{
     ptr, slice,
 };
 
-pub struct Input<R> {
-    src: R,
+pub struct Input<R: ?Sized> {
     buf: Vec<u8>,
     pos: usize,
     len: usize,
+    src: R,
+}
+
+macro_rules! def_input {
+    ($ty:ident) => {
+        pub fn $ty(&mut self) -> $ty {
+            self.input()
+        }
+    };
 }
 
 impl<R: Read> Input<R> {
@@ -64,9 +72,9 @@ impl<R: Read> Input<R> {
         let mut i = 0;
         loop {
             if self.len > 0 {
-                if let Some(d) = find_ws_naive(unsafe {
-                    self.buf.get_unchecked(self.pos + i..self.pos + self.len)
-                }) {
+                if let Some(d) =
+                    find_ws(unsafe { self.buf.get_unchecked(self.pos + i..self.pos + self.len) })
+                {
                     let del = i + d;
                     let range = self.pos..self.pos + del;
                     self.pos += del + 1;
@@ -93,7 +101,7 @@ impl<R: Read> Input<R> {
             self.pos = 0;
         }
         if self.len == self.buf.len() {
-            self.buf.resize(2 * self.buf.len(), 0);
+            self.buf.resize((2 * self.buf.len()).max(1 << 13), 0);
         }
         loop {
             match self
@@ -113,59 +121,21 @@ impl<R: Read> Input<R> {
     fn remaining(&self) -> &[u8] {
         unsafe { self.buf.get_unchecked(self.pos..self.pos + self.len) }
     }
+    def_input!(usize);
+    def_input!(u8);
+    def_input!(u16);
+    def_input!(u32);
+    def_input!(u64);
+    def_input!(isize);
+    def_input!(i8);
+    def_input!(i16);
+    def_input!(i32);
+    def_input!(i64);
+    def_input!(f32);
+    def_input!(f64);
 }
 
 /*
-const USIZE_BYTES: usize = std::mem::size_of::<usize>();
-
-#[inline]
-fn find_ws(s: &[u8]) -> Option<usize> {
-    if s.len() < 2 * USIZE_BYTES {
-        return find_ws_naive(s);
-    }
-    find_ws_aligned(s)
-}
-
-fn find_ws_aligned(s: &[u8]) -> Option<usize> {
-    let mut offset = s.as_ptr().align_offset(USIZE_BYTES);
-
-    if offset > 0 {
-        if let Some(i) = find_ws_naive(&s[..offset.min(s.len())]) {
-            return Some(i);
-        }
-    }
-
-    if offset >= s.len() {
-        return None;
-    }
-
-    let mut s = &s[offset..];
-
-    while USIZE_BYTES <= s.len() {
-        if let Some(i) = find_ws_usize(usize::from_le_bytes(s[..USIZE_BYTES].try_into().unwrap())) {
-            return Some(offset + i);
-        }
-        s = &s[USIZE_BYTES..];
-        offset += USIZE_BYTES;
-    }
-
-    let i = find_ws_naive(&s)?;
-    Some(offset + i)
-}
-
-#[inline]
-fn find_ws_usize(s: usize) -> Option<usize> {
-    const PAT: usize = 0x2121212121212121u64 as usize;
-    const HI: usize = 0x8080808080808080u64 as usize;
-    let x = s.wrapping_sub(PAT) & !s & HI;
-    if x != 0 {
-        Some(x.trailing_zeros() as usize / 8)
-    } else {
-        None
-    }
-}
- */
-
 #[inline]
 pub(crate) fn find_ws_naive(s: &[u8]) -> Option<usize> {
     for (i, c) in s.iter().enumerate() {
@@ -175,40 +145,53 @@ pub(crate) fn find_ws_naive(s: &[u8]) -> Option<usize> {
     }
     None
 }
+ */
 
-pub(crate) fn find_ws_long(s: &[u8]) -> Option<usize> {
-    let mut offset = s.as_ptr().align_offset(8);
-    if let Some(pos) = find_ws_naive(&s[..offset.min(s.len())]) {
-        return Some(pos);
-    }
-    if s.len() <= offset {
-        return None;
-    }
-    while offset + 8 <= s.len() {
-        let ss = &s[offset..offset + 8];
-        let mut i = 0;
-        let mut found = false;
-        while i < 8 {
-            found |= ss[i] <= b' ';
-            i += 1;
+const CHUNK_SIZE: usize = mem::size_of::<usize>();
+
+#[inline]
+pub(crate) fn find_ws(s: &[u8]) -> Option<usize> {
+    let offset = (32 + s.as_ptr().align_offset(CHUNK_SIZE)).min(s.len());
+    let mut i = 0;
+    while i < offset {
+        if s[i] <= b' ' {
+            return Some(i);
         }
-        if found {
-            break;
-        }
-        offset += 8;
+        i += 1;
     }
-    find_ws_naive(&s[offset..]).map(|pos| offset + pos)
+    if i < s.len() {
+        find_ws_long(s, i)
+    } else {
+        None
+    }
 }
 
-pub(crate) fn find_ws(s: &[u8]) -> Option<usize> {
-    let offset = s.as_ptr().align_offset(8);
-    if let Some(pos) = find_ws_naive(&s[..(16 + offset).min(s.len())]) {
-        return Some(pos);
+fn find_ws_long(s: &[u8], mut i: usize) -> Option<usize> {
+    while i + CHUNK_SIZE <= s.len() {
+        if let Some(j) = find_ws_usize(usize::from_le_bytes(
+            unsafe { s.get_unchecked(i..i + CHUNK_SIZE) }
+                .try_into()
+                .unwrap(),
+        )) {
+            return Some(i + j);
+        }
+        i += CHUNK_SIZE;
     }
-    if s.len() <= 16 + offset {
-        return None;
+    while i < s.len() {
+        if s[i] <= b' ' {
+            return Some(i);
+        }
+        i += 1;
     }
-    find_ws_long(&s[16 + offset..]).map(|pos| pos + 16 + offset)
+    None
+}
+
+#[inline]
+fn find_ws_usize(s: usize) -> Option<usize> {
+    const SUB: usize = 0x2121212121212121;
+    const MASK: usize = 0x8080808080808080;
+    let t = s.wrapping_sub(SUB) & MASK;
+    (t != 0).then(|| (t.trailing_zeros() / 8) as usize)
 }
 
 pub struct Seq<'a, T, R> {
@@ -229,6 +212,12 @@ impl<'a, T: Parse, R: Read> Iterator for Seq<'a, T, R> {
     }
     fn size_hint(&self) -> (usize, Option<usize>) {
         (self.n, Some(self.n))
+    }
+}
+
+impl<'a, T: Parse, R: Read> ExactSizeIterator for Seq<'a, T, R> {
+    fn len(&self) -> usize {
+        self.size_hint().0
     }
 }
 
@@ -256,7 +245,7 @@ macro_rules! parse_int {
     ($ty:ident, $ity:ident) => {
         impl ParseBytes for $ty {
             fn parse_bytes(s: &[u8]) -> Self {
-                $ty(s)
+                $ty(s, 0)
             }
         }
 
@@ -267,7 +256,7 @@ macro_rules! parse_int {
                 } else {
                     (false, s)
                 };
-                let x = $ty(s);
+                let x = $ty(s, 0);
                 (if minus { (!x).wrapping_add(1) } else { x }) as $ity
             }
         }
@@ -300,6 +289,8 @@ parse!(i8);
 parse!(i16);
 parse!(i32);
 parse!(i64);
+parse!(f32);
+parse!(f64);
 
 macro_rules! tuple {
     ($($T:ident),+) => {
@@ -382,18 +373,18 @@ fn toi4bytes(s: &[u8]) -> (u32, &[u8]) {
 }
 
 #[cfg(target_pointer_width = "32")]
-fn usize(s: &[u8]) -> usize {
-    u32(s) as usize
+fn usize(s: &[u8], pre: usize) -> usize {
+    u32(s, pre as u32) as usize
 }
 
 #[cfg(target_pointer_width = "64")]
-fn usize(s: &[u8]) -> usize {
-    u64(s) as usize
+fn usize(s: &[u8], pre: usize) -> usize {
+    u64(s, pre as u64) as usize
 }
 
 #[inline]
-fn u64(mut s: &[u8]) -> u64 {
-    let mut res = 0;
+fn u64(mut s: &[u8], pre: u64) -> u64 {
+    let mut res = pre;
     while s.len() >= 8 {
         let (x, rest) = toi8bytes(s);
         res = 100000000 * res + x as u64;
@@ -411,8 +402,8 @@ fn u64(mut s: &[u8]) -> u64 {
 }
 
 #[inline]
-fn u32(mut s: &[u8]) -> u32 {
-    let mut res = 0;
+fn u32(mut s: &[u8], pre: u32) -> u32 {
+    let mut res = pre;
     if s.len() >= 8 {
         let (x, rest) = toi8bytes(s);
         res = x;
@@ -430,8 +421,8 @@ fn u32(mut s: &[u8]) -> u32 {
 }
 
 #[inline]
-fn u16(mut s: &[u8]) -> u16 {
-    let mut res = 0;
+fn u16(mut s: &[u8], pre: u16) -> u16 {
+    let mut res = pre;
     if s.len() >= 4 {
         let (x, rest) = toi4bytes(s);
         res = 10000 * res + x as u16;
@@ -444,36 +435,75 @@ fn u16(mut s: &[u8]) -> u16 {
 }
 
 #[inline]
-fn u8(s: &[u8]) -> u8 {
-    let mut res = 0;
+fn u8(s: &[u8], pre: u8) -> u8 {
+    let mut res = pre;
     for &c in s {
         res = 10 * res + (c & 0xf);
     }
     res
 }
 
-/*
-const TEN: [f32; 9] = [1e0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8];
+macro_rules! float {
+    ($ty:ident, $uty:ident) => {
+        impl ParseBytes for $ty {
+            fn parse_bytes(s: &[u8]) -> Self {
+                const TEN: [$ty; 18] = [
+                    1e0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14,
+                    1e15, 1e16, 1e17,
+                ];
 
-impl ParseBytes for f32 {
-    fn parse_bytes(s: &[u8]) -> Self {
-        const N: usize = 9;
-        let (minus, s) = if let Some((b'-', s)) = s.split_first() {
-            (true, s)
-        } else {
-            (false, s)
-        };
-        let (int, fract) = if let Some(p) = s.iter().position(|c| *c == b'.') {
-            (&s[..p], &s[p + 1..])
-        } else {
-            (s, &[][..])
-        };
-        let (val, exp) = if int.len() <= N {
-            (u32::parse_bytes(&int[..N]), (N - int.len()) as i32)
-        } else {
-            let n = fract.len().min(N - int.len());
-        };
-        todo!()
+                let (minus, s) = if let Some((b'-', s)) = s.split_first() {
+                    (true, s)
+                } else {
+                    (false, s)
+                };
+                let (int, fract) = if let Some(p) = s.iter().position(|c| *c == b'.') {
+                    (&s[..p], &s[p + 1..])
+                } else {
+                    (s, &s[..0])
+                };
+                let x = $uty(int, 0);
+                let x = if fract.is_empty() {
+                    x as $ty
+                } else {
+                    let ten = TEN
+                        .get(fract.len())
+                        .copied()
+                        .unwrap_or_else(|| $ty::powi(10.0, fract.len() as _));
+                    $uty(fract, x) as $ty / ten
+                };
+                if minus {
+                    -x
+                } else {
+                    x
+                }
+            }
+        }
+    };
+}
+
+float!(f32, u32);
+float!(f64, u64);
+
+impl Parse for char {
+    fn parse<T: Read>(src: &mut Input<T>) -> Self {
+        let s = src.str();
+        let mut cs = s.chars();
+        match cs.next() {
+            Some(c) if cs.as_str().is_empty() => c,
+            _ => panic!("input is not single char"),
+        }
     }
 }
- */
+
+pub struct Byte(pub u8);
+
+impl Parse for Byte {
+    fn parse<T: Read>(src: &mut Input<T>) -> Self {
+        if let [b] = src.bytes() {
+            Byte(*b)
+        } else {
+            panic!("input is not single byte")
+        }
+    }
+}

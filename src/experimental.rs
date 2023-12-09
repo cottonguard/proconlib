@@ -366,6 +366,82 @@ pub fn find_ws_simd(s: &[u8]) -> Option<usize> {
 
 /*
 
- */
+*/
 
 pub struct DelaunayTriangulation {}
+
+/*
+pub struct MinMaxHeap<T>(Vec<T>);
+
+impl<T: Ord> MinMaxHeap<T> {
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn push(&mut self, v: T) {
+    }
+
+    #[inline]
+    fn push_down(&mut self, i: usize) {
+        if is_min_level(i) {
+            self.0[i]
+        } else {
+
+        }
+    }
+}
+
+/*
+   1
+ 2   3
+4 5 6 7
+*/
+
+// 2i, 2i+1
+// 4i, 4i+1, 4i+2, 4i+3
+
+fn is_min_level(i: usize) -> bool {
+    let i = i + 1;
+    const MIN_MASK: usize = 0x5555555555555555u64 as usize;
+    i & MIN_MASK > i & !MIN_MASK
+}
+ */
+
+mod rolling_hash {
+    use std::ops::{Add, Mul};
+
+    const EXP: u32 = 61;
+    const MOD: u64 = (1 << EXP) - 1;
+
+    pub struct Hash(u64);
+    impl Hash {
+        pub fn new(x: u32) -> Self {
+            Self(x as u64)
+        }
+    }
+
+    impl Add for Hash {
+        type Output = Self;
+        fn add(self, rhs: Self) -> Self::Output {
+            Self(rem_small(self.0 + rhs.0))
+        }
+    }
+
+    impl Mul for Hash {
+        type Output = Self;
+        fn mul(self, rhs: Self) -> Self::Output {
+            let prod = self.0 as u128 * rhs.0 as u128;
+            Self(rem_small(
+                (prod as u64 & MOD) + ((prod >> EXP) as u64 & MOD),
+            ))
+        }
+    }
+
+    fn rem_small(x: u64) -> u64 {
+        if x < MOD {
+            x
+        } else {
+            x - MOD
+        }
+    }
+}

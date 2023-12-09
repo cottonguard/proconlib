@@ -5,14 +5,14 @@ fn dsu_merge() {
     let mut dsu = DsuMerge::from_fn(10, |i| format!("{i}"), |x, y| x.push_str(&y));
 
     let (res, data) = dsu.unite(1, 2);
-    assert!(res.is_united());
+    assert!(res.is_modified());
     assert_eq!(res.root, 1);
     assert_eq!(res.united_root, Some(2));
     assert_eq!(res.size, 2);
     assert!(&*data == "12");
 
     let (res, data) = dsu.unite(1, 2);
-    assert!(!res.is_united());
+    assert!(!res.is_modified());
     assert_eq!(res.root, 1);
     assert_eq!(res.united_root, None);
     assert_eq!(res.size, 2);

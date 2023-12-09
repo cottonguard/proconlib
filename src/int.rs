@@ -26,6 +26,8 @@ pub trait UInt:
     fn lcm(self, other: Self) -> Self {
         self / self.gcd(other) * other
     }
+
+    fn isqrt(self) -> Self;
 }
 
 pub trait Int: UInt + Neg<Output = Self> {
@@ -122,12 +124,24 @@ macro_rules! uint {
                 let r = self % other;
                 q + (r != 0) as Self
             }
+            fn isqrt(self) -> Self {
+                let mut res = 0;
+                let mut diff = self;
+                for exp in (0..=(Self::BITS - self.leading_zeros()) / 2).rev() {
+                    if let Some(new_diff) = diff.checked_sub((res << (exp + 1)) + (1 << (2 * exp)))
+                    {
+                        diff = new_diff;
+                        res += 1 << exp;
+                    }
+                }
+                res
+            }
         }
     };
 }
 
 macro_rules! int {
-    ($ty:ty) => {
+    ($ty:ty, $uty:ty) => {
         impl UInt for $ty {
             common_fns!($ty);
             fn abs(self) -> Self {
@@ -143,6 +157,10 @@ macro_rules! int {
                 let r = self % other;
                 q + ((other ^ r > 0) as Self & (r != 0) as Self)
             }
+            fn isqrt(self) -> Self {
+                assert!(self >= 0, "the value is negative ({self})");
+                (self as $uty).isqrt() as Self
+            }
         }
         impl Int for $ty {
             // type Unsigined =
@@ -150,15 +168,27 @@ macro_rules! int {
     };
 }
 
-macro_rules! each {
-    ($macro:ident, $($ty:ty),*) => {
-        $($macro!($ty);)*
-    };
-}
-
-each!(uint, usize, u8, u16, u32, u64, u128);
-each!(int, isize, i8, i16, i32, i64, i128);
+uint!(usize);
+uint!(u8);
+uint!(u16);
+uint!(u32);
+uint!(u64);
+uint!(u128);
+int!(isize, usize);
+int!(i8, u8);
+int!(i16, u16);
+int!(i32, u32);
+int!(i64, u64);
+int!(i128, u128);
 
 pub fn gcd<T: UInt>(x: T, y: T) -> T {
     x.gcd(y)
+}
+
+pub fn ext_gcd<T: Int>(x: T, y: T) -> (T, T, T) {
+    x.ext_gcd(y)
+}
+
+pub fn lcm<T: UInt>(x: T, y: T) -> T {
+    x.lcm(y)
 }

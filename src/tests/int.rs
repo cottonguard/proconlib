@@ -54,3 +54,13 @@ fn div_ceil() {
     assert_eq!(<i32 as UInt>::div_ceil(-3, -2), 2);
     assert_eq!(<i32 as UInt>::div_ceil(-4, -2), 2);
 }
+
+#[test]
+fn isqrt() {
+    for i in (1..=10).chain(1000..=1010) {
+        assert_eq!((i * i).isqrt(), i);
+        assert_eq!((i * i + 1).isqrt(), i);
+        assert_eq!((i * (i + 1)).isqrt(), i);
+        assert_eq!((i * i - 1).isqrt(), i - 1);
+    }
+}
