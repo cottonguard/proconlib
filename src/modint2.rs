@@ -54,7 +54,7 @@ impl Modulo for VarMod {
     }
     #[inline]
     fn rem32(x: u32) -> u32 {
-        Self::rem64(x as u64) as u32
+        Self::rem64(x as u64)
     }
     #[inline]
     fn rem64(x: u64) -> u32 {
@@ -346,7 +346,7 @@ impl<M> Eq for ModInt<M> {}
 
 impl<M> PartialOrd for ModInt<M> {
     fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
-        self.value.partial_cmp(&other.value)
+        Some(self.cmp(other))
     }
 }
 
@@ -477,6 +477,12 @@ impl<M: Modulo> Fact<M> {
     }
 }
 
+impl<M: Modulo> Default for Fact<M> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 struct FactInner<M> {
     fact: Vec<ModInt<M>>,
     fact_inv: Vec<ModInt<M>>,
@@ -531,5 +537,37 @@ impl<M: Modulo> FactInner<M> {
             self.fact_inv.set_len(n + 1);
             res
         }
+    }
+}
+
+/// experimental
+/// <https://en.wikipedia.org/wiki/Thue%27s_lemma>
+pub fn fraction<M: Modulo>(x: ModInt<M>) -> (i32, i32) {
+    use std::mem::swap;
+    if x.get() == 0 {
+        return (0, 1);
+    }
+    let mut x = x.get() as i32;
+    let mut y = M::modulo() as i32;
+    let mut a = (1, 0);
+    let mut b = (0, 1);
+    while y != 0 {
+        let q = x / y;
+        x %= y;
+        swap(&mut x, &mut y);
+        a.0 -= q * b.0;
+        a.1 -= q * b.1;
+        swap(&mut a, &mut b);
+        if a.0 != 0
+            && (x as i64 * x as i64) <= M::modulo() as i64
+            && (a.0 as i64 * a.0 as i64).abs() <= M::modulo() as i64
+        {
+            break;
+        }
+    }
+    if a.0 >= 0 {
+        (x, a.0)
+    } else {
+        (-x, -a.0)
     }
 }

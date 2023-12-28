@@ -65,7 +65,7 @@ impl<M: Modulo> ModInt<M> {
 
 impl<M> Clone for ModInt<M> {
     fn clone(&self) -> Self {
-        Self::new(self.x)
+        *self
     }
 }
 
@@ -341,7 +341,7 @@ macro_rules! def_mint {
     ($modulo:expr) => {
         #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
         pub struct MintModulo;
-        impl crate::mod_int::Modulo for MintModulo {
+        impl $crate::mod_int::Modulo for MintModulo {
             fn modulo() -> u32 {
                 $modulo
             }

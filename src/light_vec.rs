@@ -418,13 +418,13 @@ impl<T, const N: usize> DerefMut for LightVec<T, N> {
 
 impl<T, const N: usize> AsRef<[T]> for LightVec<T, N> {
     fn as_ref(&self) -> &[T] {
-        &**self
+        self
     }
 }
 
 impl<T, const N: usize> AsMut<[T]> for LightVec<T, N> {
     fn as_mut(&mut self) -> &mut [T] {
-        &mut **self
+        self
     }
 }
 

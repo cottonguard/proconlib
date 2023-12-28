@@ -1,6 +1,9 @@
 #![cfg_attr(feature = "bench", feature(test))]
 #![cfg_attr(feature = "nightly", feature(portable_simd))]
 #![allow(clippy::precedence)]
+#![allow(clippy::assign_op_pattern)]
+#![allow(clippy::suspicious_arithmetic_impl)]
+#![allow(clippy::suspicious_op_assign_impl)]
 
 // pub mod arena_slices;
 // pub mod array_vec;
@@ -38,7 +41,6 @@ pub mod random;
 pub mod rational;
 pub mod scc;
 pub mod segtree;
-pub mod stdio;
 pub mod trie;
 pub mod two_sat;
 pub mod util;

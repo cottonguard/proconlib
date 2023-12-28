@@ -51,6 +51,13 @@ impl<K: Ord, V> RbsTree<K, V> {
         }
     }
 }
+
+impl<K, V> Default for RbsTree<K, V> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /*
     p
    / \
@@ -100,7 +107,7 @@ impl<K: Ord, V> Node<K, V> {
             match key.cmp(&node.key) {
                 Ordering::Equal => {
                     let prev = mem::replace(&mut node.value, value);
-                    return (node, Some(prev));
+                    (node, Some(prev))
                 }
                 Ordering::Less => {
                     let (left, prev) = node.left.take().insert(key, value, pri);

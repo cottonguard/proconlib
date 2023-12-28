@@ -1,7 +1,7 @@
 use crate::random::*;
 use std::time::{Duration, Instant};
 
-/// https://img.atcoder.jp/intro-heuristics/editorial.pdf
+/// <https://img.atcoder.jp/intro-heuristics/editorial.pdf>
 pub struct Sa {
     time_start: Instant,
     time_end: Instant,

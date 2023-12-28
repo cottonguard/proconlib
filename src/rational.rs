@@ -17,14 +17,14 @@ impl Rational {
         assert_ne!(den, 0);
         Self { num, den }
     }
-    pub unsafe fn new_unchecked(num: i64, den: u64) -> Self {
+    pub unsafe fn unnormalized_unchecked(num: i64, den: u64) -> Self {
         Self { num, den }
     }
     pub fn normalize(mut self) -> Self {
         if self.num == 0 {
             return Self::unnormalized(0, 1);
         }
-        let g = unsafe { gcd_nonzero(self.num.abs() as u64, self.den) };
+        let g = unsafe { gcd_nonzero(self.num.unsigned_abs(), self.den) };
         self.num /= g as i64;
         self.den /= g;
         self
@@ -46,6 +46,15 @@ impl Rational {
         } else {
             Self::unnormalized(-(self.den as i64), (-self.num) as u64)
         }
+    }
+    pub fn pow(mut self, exp: i32) -> Self {
+        let exp_abs = if exp >= 0 {
+            exp as u32
+        } else {
+            self = self.inv();
+            -exp as u32
+        };
+        Self::unnormalized(self.num.pow(exp_abs), self.den.pow(exp_abs))
     }
     pub fn trunc(self) -> i64 {
         self.invariant();
@@ -75,7 +84,7 @@ impl Rational {
 
 impl PartialOrd for Rational {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        (self.num as i128 * other.den as i128).partial_cmp(&(other.num as i128 * self.den as i128))
+        Some(self.cmp(other))
     }
 }
 
@@ -201,13 +210,33 @@ impl ops::Div<i64> for Rational {
         if int < 0 {
             self.num = -self.num;
         }
-        let int_abs = int.abs() as u64;
+        let int_abs = int.unsigned_abs();
         let g = unsafe { gcd_nonzero(self.num.abs() as u64, int_abs) };
         self.num /= g as i64;
         self.den *= int_abs / g;
         self
     }
 }
+
+macro_rules! op {
+    ($Op:ident, $op:ident, $OpAssign:ident, $op_assign:ident) => {
+        impl ops::$OpAssign for Rational {
+            fn $op_assign(&mut self, other: Self) {
+                *self = <Self as ops::$Op>::$op(*self, other);
+            }
+        }
+        impl ops::$OpAssign<i64> for Rational {
+            fn $op_assign(&mut self, other: i64) {
+                *self = <Self as ops::$Op<i64>>::$op(*self, other);
+            }
+        }
+    };
+}
+
+op!(Add, add, AddAssign, add_assign);
+op!(Sub, sub, SubAssign, sub_assign);
+op!(Mul, mul, MulAssign, mul_assign);
+op!(Div, div, DivAssign, div_assign);
 
 unsafe fn gcd_nonzero(x: u64, y: u64) -> u64 {
     assume_nonzero(x);

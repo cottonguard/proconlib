@@ -1,8 +1,4 @@
-use std::{
-    io::{self, Write},
-    mem::MaybeUninit,
-    slice,
-};
+use std::{io::Write, mem::MaybeUninit, slice};
 
 pub struct Output<W: ?Sized> {
     start: bool,

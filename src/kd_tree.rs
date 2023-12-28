@@ -96,7 +96,7 @@ pub struct Cursor<'a, T> {
 
 impl<'a, T: Copy> Cursor<'a, T> {
     pub fn tree(&self) -> &KdTree<T> {
-        &self.tree
+        self.tree
     }
 
     pub fn id(&self) -> usize {

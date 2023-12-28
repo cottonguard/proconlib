@@ -1,3 +1,4 @@
+#[derive(Clone)]
 pub struct FenwickTree<T, E, F> {
     a: Vec<T>,
     e: E,
