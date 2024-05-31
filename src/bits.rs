@@ -94,6 +94,24 @@ macro_rules! imp {
             }
         }
 
+        impl DoubleEndedIterator for BitPositions<$ty> {
+            fn next_back(&mut self) -> Option<u32> {
+                if self.0 == 0 {
+                    None
+                } else {
+                    let res = <$ty>::BITS - 1 - self.0.leading_zeros();
+                    self.0 ^= 1 << res;
+                    Some(res)
+                }
+            }
+        }
+
+        impl ExactSizeIterator for BitPositions<$ty> {
+            fn len(&self) -> usize {
+                self.0.count_ones() as _
+            }
+        }
+
         impl Iterator for GrayCode<$ty> {
             type Item = $ty;
             fn next(&mut self) -> Option<$ty> {
