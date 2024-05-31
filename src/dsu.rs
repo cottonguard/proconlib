@@ -1,9 +1,12 @@
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Dsu(Vec<isize>);
 
 impl Dsu {
     pub fn new(n: usize) -> Self {
         Self(vec![-1; n])
+    }
+    pub fn len(&self) -> usize {
+        self.0.len()
     }
     pub fn root(&self, mut u: usize) -> usize {
         while self.0[u] >= 0 {
@@ -47,6 +50,37 @@ impl Dsu {
         for a in &mut self.0 {
             *a = -1;
         }
+    }
+    pub fn components(&self) -> Components {
+        Components { dsu: self, i: 0 }
+    }
+}
+
+pub struct Components<'a> {
+    dsu: &'a Dsu,
+    i: usize,
+}
+
+pub struct Component {
+    pub root: usize,
+    pub size: usize,
+}
+
+impl<'a> Iterator for Components<'a> {
+    type Item = Component;
+    fn next(&mut self) -> Option<Self::Item> {
+        while self.i < self.dsu.len() {
+            let v = self.dsu.0[self.i];
+            let root = self.i;
+            self.i += 1;
+            if v < 0 {
+                return Some(Component {
+                    root,
+                    size: (-v) as usize,
+                });
+            }
+        }
+        None
     }
 }
 

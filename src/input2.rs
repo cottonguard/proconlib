@@ -13,11 +13,17 @@ pub struct Input<R: ?Sized> {
     src: R,
 }
 
-macro_rules! def_input {
-    ($ty:ident) => {
-        pub fn $ty(&mut self) -> $ty {
+macro_rules! def_input2 {
+    ($f:ident, $ty:ty) => {
+        pub fn $f(&mut self) -> $ty {
             self.input()
         }
+    };
+}
+
+macro_rules! def_input {
+    ($ty:ident) => {
+        def_input2!($ty, $ty);
     };
 }
 
@@ -46,6 +52,9 @@ impl<R: Read> Input<R> {
     pub fn vec<T: Parse>(&mut self, n: usize) -> Vec<T> {
         self.seq(n).collect()
     }
+    pub fn map_vec<T: Parse, U>(&mut self, n: usize, f: impl FnMut(T) -> U) -> Vec<U> {
+        self.seq(n).map(f).collect()
+    }
     pub fn str(&mut self) -> &str {
         std::str::from_utf8(self.bytes()).expect("utf8 error")
     }
@@ -53,7 +62,7 @@ impl<R: Read> Input<R> {
         let range = self.bytes_inner();
         unsafe { self.buf.get_unchecked(range) }
     }
-    pub fn bytes_vec(&mut self) -> Vec<u8> {
+    pub fn byte_vec(&mut self) -> Vec<u8> {
         let range = self.bytes_inner();
         if range.start == 0 && 2 * range.end >= self.buf.len() {
             let buf_len = self.buf.len();
@@ -133,6 +142,8 @@ impl<R: Read> Input<R> {
     def_input!(i64);
     def_input!(f32);
     def_input!(f64);
+    def_input!(char);
+    def_input2!(string, String);
 }
 
 /*
@@ -211,13 +222,13 @@ impl<'a, T: Parse, R: Read> Iterator for Seq<'a, T, R> {
         }
     }
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.n, Some(self.n))
+        (self.len(), Some(self.len()))
     }
 }
 
 impl<'a, T: Parse, R: Read> ExactSizeIterator for Seq<'a, T, R> {
     fn len(&self) -> usize {
-        self.size_hint().0
+        self.n
     }
 }
 
@@ -227,13 +238,13 @@ pub trait Parse {
 
 impl Parse for Vec<u8> {
     fn parse<T: Read>(src: &mut Input<T>) -> Self {
-        src.bytes_vec()
+        src.byte_vec()
     }
 }
 
 impl Parse for String {
     fn parse<T: Read>(src: &mut Input<T>) -> Self {
-        String::from_utf8(src.bytes_vec()).unwrap()
+        String::from_utf8(src.byte_vec()).unwrap()
     }
 }
 

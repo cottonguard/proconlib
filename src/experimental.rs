@@ -343,7 +343,7 @@ pub fn find_ws_simd(s: &[u8]) -> Option<usize> {
 
     const ALIGN: usize = std::mem::align_of::<u8x32>();
 
-    use std::simd::*;
+    use std::simd::{cmp::*, *};
     let mut offset = s.as_ptr().align_offset(ALIGN);
     if let Some(pos) = find_ws_naive(&s[..offset.min(s.len())]) {
         return Some(pos);

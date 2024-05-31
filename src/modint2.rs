@@ -30,6 +30,45 @@ pub trait Modulo {
     fn rem64(x: u64) -> u32 {
         (x % Self::modulo() as u64) as u32
     }
+    fn primitive_root() -> u32
+    where
+        Self: Sized,
+    {
+        if Self::modulo() == 2 {
+            return 1;
+        }
+        let mut m = Self::modulo() - 1;
+        m >>= m.trailing_zeros();
+        let mut p = [0; 20];
+        p[0] = 2;
+        let mut p_len = 1;
+        for d in 3.. {
+            if d * d >= m {
+                break;
+            }
+            if m % d == 0 {
+                p[p_len] = d;
+                p_len += 1;
+                while m % d == 0 {
+                    m /= d;
+                }
+            }
+        }
+        let mut r = 3;
+        'r: loop {
+            for &p in &p[..p_len] {
+                if ModInt::<Self>::unnormalized(r)
+                    .pow((Self::modulo() - 1) / p)
+                    .get()
+                    == 1
+                {
+                    r += 1;
+                    continue 'r;
+                }
+            }
+            return r;
+        }
+    }
 }
 
 pub struct ConstMod<const M: u32>;
@@ -110,6 +149,7 @@ pub struct ModInt<M> {
 
 impl<M> ModInt<M> {
     pub const ZERO: Self = Self::unnormalized(0);
+    pub const ONE: Self = Self::unnormalized(1);
     #[inline]
     pub const fn unnormalized(value: u32) -> Self {
         Self {
@@ -141,8 +181,43 @@ impl<M: Modulo> ModInt<M> {
         *self = value.into();
     }
     #[inline]
+    pub fn get_negative(self) -> i32 {
+        M::modulo() as i32 - self.value as i32
+    }
+    #[inline]
     pub fn inv(self) -> Self {
         self.pow(M::modulo() - 2)
+    }
+    /// experimental
+    /// <https://en.wikipedia.org/wiki/Thue%27s_lemma>
+    pub fn fraction(self) -> (i32, i32) {
+        use std::mem::swap;
+        if self.get() == 0 {
+            return (0, 1);
+        }
+        let mut x = self.get() as i32;
+        let mut y = M::modulo() as i32;
+        let mut a = (1, 0);
+        let mut b = (0, 1);
+        while y != 0 {
+            let q = x / y;
+            x %= y;
+            swap(&mut x, &mut y);
+            a.0 -= q * b.0;
+            a.1 -= q * b.1;
+            swap(&mut a, &mut b);
+            if a.0 != 0
+                && (x as i64 * x as i64) <= M::modulo() as i64
+                && (a.0 as i64 * a.0 as i64).abs() <= M::modulo() as i64
+            {
+                break;
+            }
+        }
+        if a.0 >= 0 {
+            (x, a.0)
+        } else {
+            (-x, -a.0)
+        }
     }
 }
 
@@ -304,11 +379,16 @@ macro_rules! pow {
         impl<M: Modulo> Pow<$Int> for ModInt<M> {
             #[inline]
             fn pow(self, exp: $Int) -> Self {
-                let p = self.pow(exp.abs() as $Uint);
-                if exp >= 0 {
-                    p
+                if std::mem::size_of::<$Int>() <= 4 {
+                    let exp = if exp >= 0 {
+                        exp as $Uint
+                    } else {
+                        ((M::modulo() - 2) as u64 * -exp as u64) as $Uint
+                    };
+                    self.pow(exp)
                 } else {
-                    p.inv()
+                    let x = if exp >= 0 { self } else { self.inv() };
+                    x.pow(exp.abs() as $Uint)
                 }
             }
         }
@@ -537,37 +617,5 @@ impl<M: Modulo> FactInner<M> {
             self.fact_inv.set_len(n + 1);
             res
         }
-    }
-}
-
-/// experimental
-/// <https://en.wikipedia.org/wiki/Thue%27s_lemma>
-pub fn fraction<M: Modulo>(x: ModInt<M>) -> (i32, i32) {
-    use std::mem::swap;
-    if x.get() == 0 {
-        return (0, 1);
-    }
-    let mut x = x.get() as i32;
-    let mut y = M::modulo() as i32;
-    let mut a = (1, 0);
-    let mut b = (0, 1);
-    while y != 0 {
-        let q = x / y;
-        x %= y;
-        swap(&mut x, &mut y);
-        a.0 -= q * b.0;
-        a.1 -= q * b.1;
-        swap(&mut a, &mut b);
-        if a.0 != 0
-            && (x as i64 * x as i64) <= M::modulo() as i64
-            && (a.0 as i64 * a.0 as i64).abs() <= M::modulo() as i64
-        {
-            break;
-        }
-    }
-    if a.0 >= 0 {
-        (x, a.0)
-    } else {
-        (-x, -a.0)
     }
 }

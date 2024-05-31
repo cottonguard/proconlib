@@ -1,4 +1,4 @@
-#![cfg_attr(feature = "bench", feature(test))]
+#![cfg_attr(all(feature = "bench", feature = "nightly"), feature(test))]
 #![cfg_attr(feature = "nightly", feature(portable_simd))]
 #![allow(clippy::precedence)]
 #![allow(clippy::assign_op_pattern)]
@@ -66,15 +66,21 @@ pub mod dft2;
 pub mod modint2;
 pub mod modint_poly;
 
+pub mod bipartite_matching;
+pub mod bytes_pool;
 pub mod counter;
 pub mod float;
+pub mod kmp;
 pub mod sa;
 pub mod sandbox;
+pub mod simple_rng;
 pub mod slope_trick;
 pub mod stable_graph;
 
+/*
 #[cfg(feature = "nightly")]
 pub mod mod_int_vector;
+ */
 
 #[cfg(test)]
 mod tests;

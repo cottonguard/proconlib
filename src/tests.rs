@@ -8,6 +8,7 @@ mod float;
 mod input;
 mod input2;
 mod int;
+mod kmp;
 mod light_vec;
 mod modint_poly;
 mod rational;

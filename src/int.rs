@@ -13,8 +13,8 @@ pub trait UInt:
     + Div<Output = Self>
     + Rem<Output = Self>
 {
-    fn zero() -> Self;
-    fn one() -> Self;
+    const ZERO: Self;
+    const ONE: Self;
 
     fn div_floor(self, other: Self) -> Self;
     fn div_ceil(self, other: Self) -> Self;
@@ -28,6 +28,10 @@ pub trait UInt:
     }
 
     fn isqrt(self) -> Self;
+
+    fn quotients(self) -> Qutients<Self> {
+        Qutients::new(self)
+    }
 }
 
 pub trait Int: UInt + Neg<Output = Self> {
@@ -35,9 +39,9 @@ pub trait Int: UInt + Neg<Output = Self> {
 
     fn ext_gcd(mut self, mut other: Self) -> (Self, Self, Self) {
         use std::mem::swap;
-        let mut a = (Self::one(), Self::zero());
-        let mut b = (Self::zero(), Self::one());
-        while other != Self::zero() {
+        let mut a = (Self::ONE, Self::ZERO);
+        let mut b = (Self::ZERO, Self::ONE);
+        while other != Self::ZERO {
             let d = self / other;
             self = self % other;
             swap(&mut self, &mut other);
@@ -45,7 +49,7 @@ pub trait Int: UInt + Neg<Output = Self> {
             a.1 = a.1 - d * b.1;
             swap(&mut a, &mut b);
         }
-        if self >= Self::zero() {
+        if self >= Self::ZERO {
             (self, a.0, a.1)
         } else {
             (-self, -a.0, -a.1)
@@ -61,26 +65,22 @@ pub fn crt<T: Int>(r1: T, m1: T, r2: T, m2: T) -> Option<(T, T)> {
     if m1 == g {
         return if r1 == r2 % m1 { Some((r1, m1)) } else { None };
     }
-    if (r2 - r1) % g != T::zero() {
+    if (r2 - r1) % g != T::ZERO {
         return None;
     }
     // m1q + r1 = r2 (mod u2)
     // q = v1(r2 - r1) / g (mod u2)
     let u2 = m2 / g;
     let q = (r2 - r1) / g * v1 % u2;
-    let q = if q >= T::zero() { q } else { u2 + q };
+    let q = if q >= T::ZERO { q } else { u2 + q };
     let x = m1 * q + r1;
     Some((x, m1 * u2))
 }
 
 macro_rules! common_fns {
     ($ty:ty) => {
-        fn zero() -> Self {
-            0
-        }
-        fn one() -> Self {
-            1
-        }
+        const ZERO: Self = 0;
+        const ONE: Self = 0;
         fn gcd(self, other: Self) -> Self {
             let x = self.abs();
             let y = other.abs();
@@ -96,13 +96,11 @@ macro_rules! common_fns {
             let mut x = x >> tzx;
             let mut y = y >> tzy;
             while x != y {
-                if x > y {
-                    x -= y;
-                    x >>= x.trailing_zeros();
-                } else {
-                    y -= x;
-                    y >>= y.trailing_zeros();
+                if x < y {
+                    std::mem::swap(&mut x, &mut y);
                 }
+                x -= y;
+                x >>= x.trailing_zeros();
             }
             x << tzg
         }
@@ -191,4 +189,66 @@ pub fn ext_gcd<T: Int>(x: T, y: T) -> (T, T, T) {
 
 pub fn lcm<T: UInt>(x: T, y: T) -> T {
     x.lcm(y)
+}
+
+#[derive(Debug, Clone)]
+pub struct Qutients<T> {
+    n: T,
+    ndivh: T,
+    h: T,
+}
+
+impl<T: UInt> Qutients<T> {
+    #[inline]
+    fn new(n: T) -> Self {
+        if n < T::ZERO {
+            unimplemented!()
+        }
+        let mut h = UInt::isqrt(n);
+        if n >= h * (h + T::ONE) {
+            h = h + T::ONE;
+        }
+        Qutients { n, h, ndivh: n / h }
+    }
+    #[inline]
+    pub fn get(&self, i: T) -> Option<T> {
+        if i < self.ndivh {
+            Some(i)
+        } else if self.h > i - self.ndivh {
+            let j = i - self.ndivh;
+            Some(self.n / (self.h - j))
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    pub fn count(&self) -> T {
+        self.h + self.ndivh
+    }
+
+    pub fn iter(&self) -> QutientsIter<T> {
+        QutientsIter {
+            i: T::ZERO,
+            q: self.clone(),
+        }
+    }
+}
+
+pub struct QutientsIter<T> {
+    i: T,
+    q: Qutients<T>,
+}
+
+impl<T: UInt + TryInto<usize>> Iterator for QutientsIter<T> {
+    type Item = T;
+    fn next(&mut self) -> Option<Self::Item> {
+        let q = self.q.get(self.i)?;
+        self.i = self.i + T::ONE;
+        Some(q)
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = (self.q.count() - self.i).try_into().unwrap_or(usize::MAX);
+        (len, Some(len))
+    }
 }

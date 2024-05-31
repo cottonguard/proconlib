@@ -1,6 +1,6 @@
 #[derive(Clone, Debug)]
-pub struct CoordinateComp<T>(Vec<T>);
-impl<T: Ord> CoordinateComp<T> {
+pub struct CoordComp<T>(Vec<T>);
+impl<T: Ord> CoordComp<T> {
     pub fn position(&self, key: &T) -> Option<usize> {
         let i = self.lower_bound(key);
         if self.get(i) == Some(key) {
@@ -30,21 +30,20 @@ impl<T: Ord> CoordinateComp<T> {
         i
     }
 }
-impl<T> std::ops::Deref for CoordinateComp<T> {
+impl<T> std::ops::Deref for CoordComp<T> {
     type Target = [T];
     fn deref(&self) -> &[T] {
         self.0.deref()
     }
 }
-impl<A: Into<Vec<T>>, T: Ord> From<A> for CoordinateComp<T> {
-    fn from(a: A) -> Self {
-        let mut a: Vec<_> = a.into();
+impl<T: Ord> From<Vec<T>> for CoordComp<T> {
+    fn from(mut a: Vec<T>) -> Self {
         a.sort();
         a.dedup();
         Self(a)
     }
 }
-impl<T: Ord> std::iter::FromIterator<T> for CoordinateComp<T> {
+impl<T: Ord> std::iter::FromIterator<T> for CoordComp<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let a: Vec<_> = iter.into_iter().collect();
         a.into()
