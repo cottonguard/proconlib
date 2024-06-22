@@ -1,144 +1,109 @@
-use std::{fmt, ops::Deref};
+use std::{mem, ops::Deref};
 
 pub trait Monoid {
     fn id() -> Self;
     fn op(&self, other: &Self) -> Self;
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct SegTree<T>(Vec<T>);
 
 impl<T: Monoid> SegTree<T> {
-    pub fn new(n: usize) -> Self {
-        Self((0..2 * n - 1).map(|_| T::id()).collect())
+    pub fn new(len: usize) -> Self {
+        Self((0..2 * len).map(|_| T::id()).collect())
     }
 
     pub fn sum(&self, l: usize, r: usize) -> T {
+        if l == r {
+            return T::id();
+        }
         let mut l = l + self.len();
+        l >>= l.trailing_zeros();
         let mut r = r + self.len();
-        assert!(r <= self.0.len() + 1, "out of range");
-        let mut xl = T::id();
-        let mut xr = T::id();
-        while l < r {
-            if r & 1 == 1 {
-                r -= 1;
-                xr = self.0[r - 1].op(&xr);
-            }
-            if l & 1 == 1 {
-                xl = xl.op(&self.0[l - 1]);
+        r >>= r.trailing_zeros();
+        let mut sum_l = T::id();
+        let mut sum_r = T::id();
+        loop {
+            if l >= r {
+                sum_l = sum_l.op(&self.0[l]);
                 l += 1;
-            }
-            l /= 2;
-            r /= 2;
-        }
-        xl.op(&xr)
-    }
-
-    pub fn update(&mut self, i: usize, f: impl FnOnce(&mut T)) {
-        assert!(i < self.len());
-        let mut i = i + self.len();
-        f(&mut self.0[i - 1]);
-        i /= 2;
-        while i >= 1 {
-            let res = self.0[2 * i - 1].op(&self.0[2 * i]);
-            self.0[i - 1] = res;
-            i /= 2;
-        }
-    }
-
-    pub fn set(&mut self, i: usize, x: T) {
-        self.update(i, |val| *val = x);
-    }
-
-    pub fn add(&mut self, i: usize, x: T) {
-        self.update(i, |val| *val = val.op(&x));
-    }
-
-    /*
-    pub fn max_right<F: FnMut(&T) -> bool>(&self, l: usize, mut f: F) -> (usize, T)
-    where
-        T: std::fmt::Debug,
-    {
-        let mut x = T::id();
-        let mut i = self.len() + l;
-        loop {
-            let sum = x.op(&self.0[i - 1]);
-            dbg!(i, &sum, &self.0[i - 1]);
-            if !f(&sum) {
-                break;
-            }
-            if i == 1 {
-                x = sum;
-                break;
-            }
-            if i % 2 == 1 {
-                x = sum;
-                i += 1;
+                l >>= l.trailing_zeros();
             } else {
-                i /= 2;
+                r -= 1;
+                sum_r = self.0[r].op(&sum_r);
+                r >>= r.trailing_zeros();
             }
-        }
-        loop {
-            let sum = x.op(&self.0[i - 1]);
-            dbg!(i, &sum);
-            if f(&sum) {
-                x = sum;
-                i += 1;
-            }
-            if i >= self.len() {
+            if l == r {
                 break;
             }
-            i *= 2;
         }
-        (i - self.len(), x)
+        sum_l.op(&sum_r)
     }
-     */
 
-    #[inline]
-    fn build(mut a: Vec<T>) -> Self {
-        let n = (a.len() + 1) / 2;
-        for i in (1..n).rev() {
-            a[i - 1] = a[2 * i - 1].op(&a[2 * i]);
+    pub fn sum_all(&self) -> T {
+        self.0[1].op(&T::id())
+    }
+
+    pub fn set(&mut self, i: usize, value: T) -> T {
+        self.update(i, |_| value)
+    }
+
+    pub fn add_left(&mut self, i: usize, value: &T) -> T {
+        self.update(i, |orig| value.op(orig))
+    }
+
+    pub fn add_right(&mut self, i: usize, value: &T) -> T {
+        self.update(i, |orig| orig.op(value))
+    }
+
+    pub fn update<F: FnOnce(&T) -> T>(&mut self, i: usize, f: F) -> T {
+        let mut i = i + self.0.len() / 2;
+        let value = f(&self.0[i]);
+        let orig = mem::replace(&mut self.0[i], value);
+        while i > 1 {
+            i /= 2;
+            self.0[i] = self.0[2 * i].op(&self.0[2 * i + 1]);
         }
-        Self(a)
+        orig
+    }
+
+    pub fn clear(&mut self) {
+        for a in &mut self.0 {
+            *a = T::id();
+        }
     }
 }
 
 impl<T> Deref for SegTree<T> {
     type Target = [T];
-
-    fn deref(&self) -> &[T] {
+    fn deref(&self) -> &Self::Target {
         &self.0[self.0.len() / 2..]
-    }
-}
-
-impl<T: Monoid + Clone> From<&[T]> for SegTree<T> {
-    fn from(a: &[T]) -> Self {
-        let a = (0..a.len() - 1)
-            .map(|_| T::id())
-            .chain(a.iter().cloned())
-            .collect();
-        Self::build(a)
     }
 }
 
 impl<T: Monoid> From<Vec<T>> for SegTree<T> {
     fn from(mut a: Vec<T>) -> Self {
-        if !a.is_empty() {
-            a.splice(..0, (0..a.len() - 1).map(|_| T::id()));
+        let len = a.len();
+        a.reserve(len);
+        let ptr = a.as_mut_ptr();
+        unsafe {
+            ptr.copy_to(ptr.add(len), len);
+            for i in (1..len).rev() {
+                ptr.add(i)
+                    .write(T::op(&*ptr.add(2 * i), &*ptr.add(2 * i + 1)));
+            }
+            ptr.write(T::id());
+            a.set_len(2 * len);
         }
-        Self::build(a)
+        Self(a)
     }
 }
 
-impl<T: Monoid> std::iter::FromIterator<T> for SegTree<T> {
+impl<T: Monoid> FromIterator<T> for SegTree<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        iter.into_iter().collect::<Vec<_>>().into()
-    }
-}
-
-impl<T: fmt::Debug> fmt::Debug for SegTree<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("SegTree").field(&self.deref()).finish()
+        let iter = iter.into_iter();
+        let mut a = Vec::with_capacity(2 * iter.size_hint().0);
+        a.extend(iter);
+        Self::from(a)
     }
 }

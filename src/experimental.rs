@@ -1,3 +1,9 @@
+// pub mod rbst;
+pub mod bitset;
+pub mod lazy_segtree;
+pub mod matrix;
+pub mod smallrng;
+
 pub fn next_n_ones(x: u64) -> u64 {
     let tz = x.trailing_zeros();
     let a = x + (1 << tz);

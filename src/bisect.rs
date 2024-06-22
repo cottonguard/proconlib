@@ -1,5 +1,5 @@
 pub trait Bisect<T> {
-    fn bisect<F: Fn(&T) -> bool>(&self, cond: F) -> (usize, Option<&T>);
+    fn bisect<F: FnMut(&T) -> bool>(&self, cond: F) -> (usize, Option<&T>);
     fn lower_bound(&self, x: &T) -> (usize, Option<&T>)
     where
         T: Ord,
@@ -14,7 +14,7 @@ pub trait Bisect<T> {
     }
 }
 impl<T> Bisect<T> for [T] {
-    fn bisect<F: Fn(&T) -> bool>(&self, cond: F) -> (usize, Option<&T>) {
+    fn bisect<F: FnMut(&T) -> bool>(&self, mut cond: F) -> (usize, Option<&T>) {
         let mut l = -1;
         let mut r = self.len() as isize;
         while r - l > 1 {

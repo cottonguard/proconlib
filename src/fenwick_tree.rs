@@ -1,16 +1,12 @@
 #[derive(Clone)]
-pub struct FenwickTree<T, E, F> {
+pub struct FenwickTree<T> {
     a: Vec<T>,
-    e: E,
-    f: F,
 }
 
-impl<T, E: Fn() -> T, F: Fn(&T, &T) -> T> FenwickTree<T, E, F> {
-    pub fn new(n: usize, e: E, f: F) -> Self {
+impl<T: Monoid> FenwickTree<T> {
+    pub fn new(n: usize) -> Self {
         Self {
-            a: (0..n).map(|_| e()).collect(),
-            e,
-            f,
+            a: (0..n).map(|_| T::id()).collect(),
         }
     }
 
@@ -24,9 +20,9 @@ impl<T, E: Fn() -> T, F: Fn(&T, &T) -> T> FenwickTree<T, E, F> {
 
     pub fn sum(&self, i: usize) -> T {
         let mut i = i.min(self.a.len());
-        let mut x = (self.e)();
+        let mut x = T::id();
         while i > 0 {
-            x = (self.f)(&self.a[i - 1], &x);
+            x = T::op(&self.a[i - 1], &x);
             i = i & i - 1;
         }
         x
@@ -45,8 +41,13 @@ impl<T, E: Fn() -> T, F: Fn(&T, &T) -> T> FenwickTree<T, E, F> {
         );
         let mut i = i + 1;
         while i <= self.a.len() {
-            self.a[i - 1] = (self.f)(&self.a[i - 1], &x);
+            self.a[i - 1] = T::op(&self.a[i - 1], &x);
             i += i & (!i + 1);
         }
     }
+}
+
+pub trait Monoid {
+    fn id() -> Self;
+    fn op(&self, other: &Self) -> Self;
 }

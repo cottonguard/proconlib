@@ -61,6 +61,7 @@ pub struct Components<'a> {
     i: usize,
 }
 
+#[derive(Clone, Copy, Debug)]
 pub struct Component {
     pub root: usize,
     pub size: usize,

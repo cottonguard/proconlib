@@ -42,6 +42,9 @@ impl<R: Read> Input<R> {
     pub fn input<T: Parse>(&mut self) -> T {
         T::parse(self)
     }
+    pub fn map<T, F: MapOnce<T>>(&mut self, f: F) -> F::Output {
+        f.map(self)
+    }
     pub fn seq<T: Parse>(&mut self, n: usize) -> Seq<T, R> {
         Seq {
             src: self,
@@ -49,11 +52,19 @@ impl<R: Read> Input<R> {
             marker: PhantomData,
         }
     }
+    pub fn seq_map<T, F: Map<T>>(&mut self, n: usize, f: F) -> SeqMap<T, F, R> {
+        SeqMap {
+            src: self,
+            n,
+            f,
+            marker: PhantomData,
+        }
+    }
     pub fn vec<T: Parse>(&mut self, n: usize) -> Vec<T> {
         self.seq(n).collect()
     }
-    pub fn map_vec<T: Parse, U>(&mut self, n: usize, f: impl FnMut(T) -> U) -> Vec<U> {
-        self.seq(n).map(f).collect()
+    pub fn map_vec<T, F: Map<T>>(&mut self, n: usize, f: F) -> Vec<F::Output> {
+        self.seq_map(n, f).collect()
     }
     pub fn str(&mut self) -> &str {
         std::str::from_utf8(self.bytes()).expect("utf8 error")
@@ -146,6 +157,38 @@ impl<R: Read> Input<R> {
     def_input2!(string, String);
 }
 
+pub trait Map<T> {
+    type Output;
+    fn map<R: Read>(&mut self, src: &mut Input<R>) -> Self::Output;
+}
+pub trait MapOnce<T> {
+    type Output;
+    fn map<R: Read>(self, src: &mut Input<R>) -> Self::Output;
+}
+
+macro_rules! map {
+    ($($T:ident),*) => {
+        impl<$($T: Parse,)* O, F: FnMut($($T),+) -> O> Map<fn($($T),+)> for F {
+            type Output = O;
+            fn map<R: Read>(&mut self, src: &mut Input<R>) -> O {
+                self($(src.input::<$T>()),*)
+            }
+        }
+        impl<$($T: Parse,)* O, F: FnOnce($($T),+) -> O> MapOnce<fn($($T),+)> for F {
+            type Output = O;
+            fn map<R: Read>(self, src: &mut Input<R>) -> O {
+                self($(src.input::<$T>()),*)
+            }
+        }
+    };
+}
+
+map!(A);
+map!(A, B);
+map!(A, B, C);
+map!(A, B, C, D);
+map!(A, B, C, D, E);
+
 /*
 #[inline]
 pub(crate) fn find_ws_naive(s: &[u8]) -> Option<usize> {
@@ -227,6 +270,34 @@ impl<'a, T: Parse, R: Read> Iterator for Seq<'a, T, R> {
 }
 
 impl<'a, T: Parse, R: Read> ExactSizeIterator for Seq<'a, T, R> {
+    fn len(&self) -> usize {
+        self.n
+    }
+}
+
+pub struct SeqMap<'a, T, F, R> {
+    src: &'a mut Input<R>,
+    n: usize,
+    f: F,
+    marker: PhantomData<*const T>,
+}
+
+impl<'a, T, F: Map<T>, R: Read> Iterator for SeqMap<'a, T, F, R> {
+    type Item = F::Output;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.n > 0 {
+            self.n -= 1;
+            Some(self.f.map(self.src))
+        } else {
+            None
+        }
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.len(), Some(self.len()))
+    }
+}
+
+impl<'a, T, F: Map<T>, R: Read> ExactSizeIterator for SeqMap<'a, T, F, R> {
     fn len(&self) -> usize {
         self.n
     }
