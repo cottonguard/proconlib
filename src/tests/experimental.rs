@@ -1,3 +1,5 @@
+mod matrix;
+
 use crate::experimental::*;
 
 #[test]
